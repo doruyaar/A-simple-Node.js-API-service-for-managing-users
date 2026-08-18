@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
 const _ = require('lodash');
@@ -9,7 +10,10 @@ const { formatUserData, validateRequest } = require('./utils/helpers');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.demoSecretKeyForMaskScanner.4v8Qw1Q2w3e4r5t6y7u8i9o0p';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET is required but was not provided');
+}
 
 // Middleware
 app.use(express.json());
