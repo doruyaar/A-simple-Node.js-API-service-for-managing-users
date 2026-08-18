@@ -38,7 +38,7 @@ jobs:
         oidc-provider-name: jfroggithuboidc #Establish an OIDC connection to allow trust between the workflow and your JFrog instance
     
     - name: Set CLI Config
-      run: jf npm-config --global=true --repo-resolve=${{ env.NPM_VIRTUAL_REPO }} --repo-deploy=${{ env.NPM_VIRTUAL_REPO }}
+      run: jf npm-config --global=true --repo-resolve=${{ vars.NPM_VIRTUAL_REPO }} --repo-deploy=${{ vars.NPM_VIRTUAL_REPO }}
 
     - name: build webapp
       run: |
