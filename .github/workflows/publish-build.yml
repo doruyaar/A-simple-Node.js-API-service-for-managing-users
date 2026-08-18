@@ -18,16 +18,9 @@ jobs:
   build-publish-docker:
     runs-on: ubuntu-latest
     env:
-      # Configure these as GitHub repository variables
-      # (Settings > Secrets and variables > Actions > Variables):
-      #   JF_URL            -> bare host, e.g. mycompany.jfrog.io
-      #   DOCKER_REPO       -> Docker repo key in Artifactory, e.g. docker-local
-      #   NPM_VIRTUAL_REPO  -> npm virtual repo key, e.g. npm-virtual
-      DOCKER_REPO: ${{ vars.DOCKER_REPO }}
+      DOCKER_REPO: docker-local
       IMAGE_NAME: user-management-service
-      IMAGE_TAG: ${{ github.run_number }}
       JF_URL: https://${{ vars.JF_URL }}/
-      NPM_VIRTUAL_REPO: ${{ vars.NPM_VIRTUAL_REPO }}
       DOCKER_BUILD_SUMMARY: false
       DOCKER_BUILD_RECORD_UPLOAD: false
       JFROG_CLI_LOG_LEVEL: DEBUG
@@ -42,8 +35,8 @@ jobs:
       env:
         JF_URL: https://${{ vars.JF_URL }}/
       with:
-        oidc-provider-name: jfrog-github-oidc #Establish an OIDC connection to allow trust between the workflow and your JFrog instance
-
+        oidc-provider-name: jfroggithuboidc #Establish an OIDC connection to allow trust between the workflow and your JFrog instance
+    
     - name: Set CLI Config
       run: jf npm-config --global=true --repo-resolve=${{ env.NPM_VIRTUAL_REPO }} --repo-deploy=${{ env.NPM_VIRTUAL_REPO }}
 
@@ -67,9 +60,9 @@ jobs:
       with:
         push: true
         context: .
-        platforms: linux/amd64,linux/arm64
+        platforms: linux/amd64
         tags: |
-          ${{ vars.JF_URL }}/${{ env.DOCKER_REPO }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          ${{ vars.JF_URL }}/${{ env.DOCKER_REPO }}/${{ env.IMAGE_NAME }}:${{ github.run_number }}
           ${{ vars.JF_URL }}/${{ env.DOCKER_REPO }}/${{ env.IMAGE_NAME }}:latest
         provenance: false
 
