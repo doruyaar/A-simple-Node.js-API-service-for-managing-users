@@ -1,73 +1,53 @@
-# Remediation - applicable vulns
+# Remediation
 
-jfrog audit found 3 applicable vulns. applicable means the vulnerable code is
-actually reachable from our code, not just sitting in node_modules. so these are
-the ones we care about. all 3 fixed by version bump, no need for code change.
+## The high applicable issues
 
-## what applicable means
+all come from one `jf audit` contextual scan:
 
-the scan first match our dependency versions to the CVE list (thats the huge
-table). then the contextual analysis check if we really call the bad function
-with input that can trigger it. if yes it say "Applicable". the rest is
-"Not Applicable" / "Not Covered" and we can leave it for later.
+1. **moment ReDoS** - CVE-2022-31129 - High - dependency CVE, CA verdict
+   **Applicable**. `moment` 2.19.3, a long user string to the parser burns CPU.
+2. **hardcoded JWT secret** - High - Secrets Detection at `src/index.js:12`. a
+   real signing secret committed in the source; anyone with the repo can forge
+   tokens.
+3. **lodash prototype pollution** - CVE-2018-16487 - CA **Applicable**,
+   SAST-confirmed. the live sink is `_.merge(users[userIndex], req.body)` at
+   `src/routes/users.js:143`, so a `__proto__` key in the PUT body can pollute
+   `Object.prototype`. severity is Medium (not a "high"), but it is the clearest
+   real reach in the report, so i fixed it too.
 
-so instead of going over ~70 rows we only deal with the 3 real ones.
+some of these paths look not reachable at first because they sit in exported
+helper functions that are never called (dead code) - i fixed them anyway rather
+than rely on that.
 
-## the findings
+## What "applicable" means
 
-### 1. CVE-2022-31129 - moment - High
-- package: `moment` 2.19.3
-- fixed in: 2.29.4
-- what: ReDoS. if you send a very long string to moment parser it blow the CPU.
-- where its reachable: we parse user dates with `moment()`.
-  - `src/utils/helpers.js:125` - `moment(user.updatedAt || user.createdAt)`
-  - `src/utils/helpers.js:133-134` - `moment(user.createdAt)`
-  this data can come from the request so its not trusted.
-- fix: bump `moment` to `2.29.4`.
-- link: https://github.com/moment/moment/security/advisories/GHSA-wc69-rhjr-hc9g
+the scan matches dependency versions to the CVE list, then contextual analysis
+checks if the vulnerable function is actually called with input that can trigger
+it. only those are **Applicable**; the rest are Not Applicable / Not Covered /
+Missing Context. this changes prioritisation: instead of chasing every CVE row, i
+fix the few that are truly reachable and deprioritise the noise.
 
-### 2. CVE-2018-16487 - lodash - Medium
-- package: `lodash` 4.17.4
-- fixed in: 4.17.11
-- what: prototype pollution in `_.merge` / `_.mergeWith` / `_.defaultsDeep`.
-- where its reachable: we `_.merge` request data into an object.
-  - `src/routes/users.js:143` - `_.merge(users[userIndex], { ... })` on PUT body
-  - `src/utils/helpers.js:112` - `_.merge(defaults, userData)`
-  - `src/utils/helpers.js:153` - `_.merge({}, item)` on external data
-  someone can put `__proto__` key in the body and pollute Object.prototype.
-- fix: covered when we bump `lodash` to `4.17.21`.
-- link: https://github.com/advisories/GHSA-4xc9-xhrj-v574
-
-### 3. CVE-2020-28500 - lodash - Medium
-- package: `lodash` 4.17.4
-- fixed in: 4.17.21
-- what: ReDoS in `_.trim` / `_.trimEnd` / `_.toNumber`.
-- where its reachable: `src/utils/helpers.js:65` - `_.trim(input)` inside
-  `sanitizeInput`, runs on user input.
-- fix: bump `lodash` to `4.17.21`.
-- link: https://github.com/advisories/GHSA-29mw-wpgm-hmr9
-
-## the fix
-
-two lines in `package.json`:
+## What i fixed
 
 ```
-"lodash": "4.17.4"  ->  "4.17.21"
-"moment": "2.19.3"  ->  "2.29.4"
+moment  2.19.3 -> 2.29.4                  (High applicable ReDoS)
+JWT secret     -> process.env.JWT_SECRET   (High secret; fails fast in prod)
+lodash  4.17.4 -> 4.17.21                  (reachable prototype pollution + ReDoS)
 ```
 
-lodash 4.17.21 fix both lodash CVEs (16487 fixed at 4.17.11, 28500 fixed at
-4.17.21, so the higher one win). moment 2.29.4 fix the moment ReDoS.
+no API change for the version bumps, so the code stays the same.
 
-no API change between these versions so the code stay the same.
+## Verify
 
-## verify
+- app boots: `node src/index.js` serves `/health` and `/api/auth/login` returns
+  a JWT.
+- `jf audit --npm` after the fix: **0 Applicable** dependency vulns and
+  **no secrets found**.
 
-ran `jf audit --npm` again after the changes and it confirm the project is now
-clean from the applicable vulns. so we good.
+## Note - missing dependencies
 
-## Notes
-
-- the secrets issue (hardcoded JWT in `src/index.js:12`) will be fix also in the
-  next commit. its not part of the assignment but its a build violation and it
-  bother the eye.
+the app could not run as-is: the code `require`s two packages that were not
+declared in `package.json` - `bcrypt` (`src/index.js`) and `validator`
+(`src/routes/users.js`, `src/utils/helpers.js`) - so `npm start` crashed with
+`MODULE_NOT_FOUND`. i added both to `package.json`, reinstalled, and confirmed the
+app now runs.
