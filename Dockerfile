@@ -1,24 +1,25 @@
-# Use an older Node.js version for demonstration
-FROM node:14-alpine
+# Supported LTS Node.js version (node:14 is EOL and required for bcrypt >= 18)
+FROM node:20-alpine
 
 # Set working directory
 WORKDIR /app
 
-# Copy package files
+# Copy package files (including the lockfile for reproducible installs)
 COPY package*.json ./
 
-# Install dependencies (including vulnerable ones)
-RUN npm install
+# Install production dependencies. bcrypt is a native addon, so build tools are
+# required to compile it on Alpine; they are removed afterwards to keep the image small.
+RUN apk add --no-cache --virtual .build-deps python3 make g++ \
+    && npm ci --omit=dev \
+    && apk del .build-deps
 
 # Copy source code
 COPY src/ ./src/
 
-# Create a non-root user
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S nodejs -u 1001
-
-# Change ownership of the app directory
-RUN chown -R nodejs:nodejs /app
+# Create a non-root user and hand over ownership of the app directory
+RUN addgroup -g 1001 -S nodejs \
+    && adduser -S nodejs -u 1001 \
+    && chown -R nodejs:nodejs /app
 
 # Switch to non-root user
 USER nodejs
