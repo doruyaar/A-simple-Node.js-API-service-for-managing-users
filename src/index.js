@@ -10,8 +10,10 @@ const { formatUserData, validateRequest } = require('./utils/helpers');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-// secret comes from env, see .env.example. fallback is for local/test only
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET is required but was not provided');
+}
 
 // Middleware
 app.use(express.json());
